@@ -38,6 +38,8 @@
 #include "common/platform_config.h"
 #include "aicpu/platform_regs.h"
 
+#define DISCARD_THREAD_NUM 1
+
 // Core type definitions
 #include "common/core_type.h"
 
@@ -715,7 +717,7 @@ int32_t AicpuExecutor::init(Runtime* runtime) {
     // Read execution parameters from runtime
     thread_num_ = runtime->sche_cpu_num;
     orch_thread_num_ = runtime->orch_thread_num;
-    sched_thread_num_ = thread_num_ - orch_thread_num_;
+    sched_thread_num_ = thread_num_ - orch_thread_num_ - DISCARD_THREAD_NUM;
     if (thread_num_ == 0) thread_num_ = 1;
 
     if (thread_num_ < 1 || thread_num_ > MAX_AICPU_THREADS) {
@@ -1331,8 +1333,8 @@ void AicpuExecutor::apply_simpler_aicpu_affinity(int32_t thread_idx) {
     // Only enable this policy for the requested scenario:
     // - total 5 AICPU threads
     // - exactly 2 CPU clusters (0..3, 4..7)
-    // - 3 scheduler threads + 2 orchestrator threads (so we can drop 1 and still have 1 orch + 3 sched active)
-    if (thread_num_ != 5 || sched_thread_num_ != 3 || orch_thread_num_ != 2) return;
+    // - 3 scheduler threads + 1 orchestrator threads + 1 discarded thread (so we can drop 1 and still have 1 orch + 3 sched active)
+    //if (thread_num_ != 5 || sched_thread_num_ != 3 || orch_thread_num_ != 2) return;
 
     const int32_t cpu = sched_getcpu();
     if (cpu >= 0 && cpu < 63) {
