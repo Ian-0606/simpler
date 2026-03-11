@@ -1336,12 +1336,18 @@ void AicpuExecutor::apply_simpler_aicpu_affinity(int32_t thread_idx) {
     // - 3 scheduler threads + 1 orchestrator threads + 1 discarded thread (so we can drop 1 and still have 1 orch + 3 sched active)
     //if (thread_num_ != 5 || sched_thread_num_ != 3 || orch_thread_num_ != 2) return;
 
+    constexpr int32_t AICPU_CORES_PER_CHIP = 8;  // 2 clusters * 4 cores
+
     const int32_t cpu = sched_getcpu();
     if (cpu >= 0 && cpu < 63) {
         affinity_cpumask_.fetch_or(1ULL << cpu, std::memory_order_release);
     }
     if (cpu >= 0 && thread_idx >= 0 && thread_idx < MAX_AICPU_THREADS) {
-        thread_cpu_[thread_idx] = cpu;
+        int32_t normalized_cpu = cpu % AICPU_CORES_PER_CHIP;
+        if (cpu != normalized_cpu) {
+            DEV_INFO("AICPU affinity: thread %d raw cpu=%d normalized to %d", thread_idx, cpu, normalized_cpu);
+        }
+        thread_cpu_[thread_idx] = normalized_cpu;
     }
 
     // Wait until all AICPU threads have reported initial CPU.
@@ -1356,7 +1362,7 @@ void AicpuExecutor::apply_simpler_aicpu_affinity(int32_t thread_idx) {
             int32_t count{0};
             int32_t tids[MAX_AICPU_THREADS];
         };
-        constexpr int32_t MAX_CLUSTERS = 2;  // cluster0: [0..3], cluster1: [4..7]
+        constexpr int32_t MAX_CLUSTERS = 2;  // cluster0: cpu 0..3, cluster1: cpu 4..7 (normalized from 0..15)
         constexpr int32_t CPUS_PER_CLUSTER = 4;
         ClusterInfo clusters[MAX_CLUSTERS];
 
